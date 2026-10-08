@@ -1,0 +1,19 @@
+{
+  "name": "nesto-qa-challenge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright + TypeScript automation suite for the nesto Signup page",
+  "scripts": {
+    "test": "playwright test -c config/playwright.config.ts",
+    "test:en": "playwright test -c config/playwright.config.ts --project=en",
+    "test:fr": "playwright test -c config/playwright.config.ts --project=fr",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@types/node": "^26.6.4",
+    "dotenv": "^18.0.6",
+    "typescript": "^7.0.2"
+  }
+}
