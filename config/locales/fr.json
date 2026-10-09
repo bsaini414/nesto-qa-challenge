@@ -1,0 +1,29 @@
+{
+  "lang": "fr",
+  "path": "/fr/signup",
+  "pageTitle": "nesto | Enregistrement",
+  "heading": "Créez un compte nesto",
+  "labels": {
+    "firstName": "Prénom",
+    "lastName": "Nom",
+    "phoneCountry": "Phone number country",
+    "phone": "Téléphone",
+    "region": "Province de l'achat",
+    "email": "Courriel",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmation du mot de passe"
+  },
+  "consent": "En cochant cette case, vous acceptez d’être contacté par les partenaires de nesto dans le but de vous proposer des produits financiers. Vous acceptez que nesto partage vos informations de demande hypothécaire avec ses partenaires, si nous ne sommes pas en mesure de vous fournir nos services. Vous pouvez vous désinscrire à tout moment.",
+  "submit": "Créez votre compte",
+  "passwordHelp": "Le mot de passe doit contenir entre 12 et 32 caractères et contenir au moins une lettre majuscule, une lettre minuscule et un chiffre.",
+  "errors": {
+    "required": "Ce champ est obligatoire.",
+    "invalidValue": "Valeur invalide.",
+    "invalidEmail": "Courriel invalide",
+    "invalidName": "Nom invalide",
+    "passwordMinimum": "Minimum de 12 lettres requises",
+    "passwordPolicy": "Le mot de passe doit contenir entre 12 et 32 caractères et contenir au moins une lettre majuscule, une lettre minuscule et un chiffre.",
+    "passwordsMismatch": "Les mots de passe ne correspondent pas",
+    "serverError": "Quelque chose n'a pas fonctionné! Veuillez réessayer et si vous avez toujours des problèmes, n'hésitez pas à contacter votre conseiller"
+  }
+}

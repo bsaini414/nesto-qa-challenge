@@ -1,0 +1,29 @@
+{
+  "lang": "en",
+  "path": "/signup",
+  "pageTitle": "nesto | Signup",
+  "heading": "Create a nesto account",
+  "labels": {
+    "firstName": "First name",
+    "lastName": "Last name",
+    "phoneCountry": "Phone number country",
+    "phone": "Phone number",
+    "region": "Province of purchase",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password"
+  },
+  "consent": "By checking this box, you agree to be contacted by nesto’s partners for the purposes of offering you financial products. You agree to nesto sharing your mortgage information with its partners. You can opt-out at any time.",
+  "submit": "Create your account",
+  "passwordHelp": "Password must be between 12 and 32 characters and contain one uppercase letter, one lowercase letter and one number.",
+  "errors": {
+    "required": "The field is required",
+    "invalidValue": "Invalid value",
+    "invalidEmail": "Invalid email",
+    "invalidName": "Invalid name",
+    "passwordMinimum": "Minimum of 12 letters required",
+    "passwordPolicy": "Password must be between 12 and 32 characters and contain one uppercase letter, one lowercase letter and one number.",
+    "passwordsMismatch": "Passwords do not match",
+    "serverError": "Something went wrong! Please try again and if you continue to have trouble feel free to contact your advisor"
+  }
+}

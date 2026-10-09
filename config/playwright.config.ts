@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 import { env } from './env';
 
-export default defineConfig({
+type LangOptions = { lang: 'en' | 'fr' };
+
+export default defineConfig<LangOptions>({
   testDir: '../tests',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -14,8 +16,19 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      // API tests need no browser, so they run once.
+      name: 'api',
+      testMatch: /api-tests\/.*\.spec\.ts/,
+    },
+    {
+      name: 'en-locale',
+      testMatch: /(ui-tests|e2e-tests)\/.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], lang: 'en' },
+    },
+    {
+      name: 'fr-locale',
+      testMatch: /(ui-tests|e2e-tests)\/.*\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'], lang: 'fr' },
     },
   ],
 });
