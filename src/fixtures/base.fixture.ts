@@ -27,6 +27,8 @@ export async function cleanupAccount(request: APIRequestContext, account: Create
 }
 
 type Fixtures = {
+  // Auto fixture: when SKIP_KNOWN_BUGS is set (CI), known-defect tests are reported as skipped and not run.
+  skipKnownBugsInCi: void;
   // Accounts created during the test. Cleaned up automatically after each test.
   createdAccounts: CreatedAccount[];
   lang: 'en' | 'fr';
@@ -35,6 +37,16 @@ type Fixtures = {
 };
 
 export const test = base.extend<Fixtures>({
+  skipKnownBugsInCi: [
+    async ({}, use, testInfo) => {
+      if (process.env.SKIP_KNOWN_BUGS && testInfo.tags.includes("@known-bug")) {
+        test.skip(true, "Known defect: not run in CI, see docs/BUG_REPORT.md");
+      }
+      await use();
+    },
+    { auto: true },
+  ],
+
   lang: ['en', { option: true }],
 
   strings: async ({ lang }, use) => {

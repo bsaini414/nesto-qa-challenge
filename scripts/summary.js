@@ -65,7 +65,8 @@ if (rows.length === 0) {
   if (known.length) {
     md += '| Bug | Test | Project | Result |\n|---|---|---|---|\n';
     for (const r of known) {
-      const result = classify(r) === 'known-failing' ? 'fails (expected)' : 'passes: remove the knownBug tag';
+      const k = classify(r);
+      const result = k === 'skipped' ? 'not run (skipped in CI)' : k === 'known-failing' ? 'fails (expected)' : 'passes: remove the knownBug tag';
       md += `| ${esc(r.bugs.join(', '))} | ${esc(name(r))} | ${esc(r.project)} | ${result} |\n`;
     }
   } else {

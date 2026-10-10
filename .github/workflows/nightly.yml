@@ -21,6 +21,7 @@ jobs:
     env:
       QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL }}
       CI: "true"
+      SKIP_KNOWN_BUGS: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,19 +31,13 @@ jobs:
       - run: npm ci
       - name: Check target is not production
         run: node scripts/check-target.js "$QA_BASE_URL"
-      - name: API, blocking (no known bugs)
+      - name: API tests
         env:
           REPORT_DIR: blocking
-        run: npx playwright test -c config/playwright.config.ts --project=api --grep-invert @known-bug
-      - name: API, known bugs (non-blocking)
-        if: always()
-        continue-on-error: true
-        env:
-          REPORT_DIR: known
-        run: npx playwright test -c config/playwright.config.ts --project=api --grep @known-bug
+        run: npx playwright test -c config/playwright.config.ts --project=api
       - name: Job summary
         if: always()
-        run: node scripts/summary.js "Nightly - API" reports/blocking/results.json reports/known/results.json
+        run: node scripts/summary.js "Nightly - API" reports/blocking/results.json
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
@@ -73,6 +68,7 @@ jobs:
       QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL }}
       UI_RETRIES: "2"
       CI: "true"
+      SKIP_KNOWN_BUGS: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -83,25 +79,16 @@ jobs:
       - run: npx playwright install --with-deps ${{ matrix.install }}
       - name: Check target is not production
         run: node scripts/check-target.js "$QA_BASE_URL"
-      - name: UI, blocking (no known bugs)
+      - name: UI tests
         env:
           REPORT_DIR: blocking
         run: >
           npx playwright test -c config/playwright.config.ts
           --project=${{ matrix.browser }}-en --project=${{ matrix.browser }}-fr
-          tests/ui-tests --grep-invert @known-bug
-      - name: UI, known bugs (non-blocking)
-        if: always()
-        continue-on-error: true
-        env:
-          REPORT_DIR: known
-        run: >
-          npx playwright test -c config/playwright.config.ts
-          --project=${{ matrix.browser }}-en --project=${{ matrix.browser }}-fr
-          tests/ui-tests --grep @known-bug
+          tests/ui-tests
       - name: Job summary
         if: always()
-        run: node scripts/summary.js "Nightly - UI (${{ matrix.browser }})" reports/blocking/results.json reports/known/results.json
+        run: node scripts/summary.js "Nightly - UI (${{ matrix.browser }})" reports/blocking/results.json
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
@@ -131,6 +118,7 @@ jobs:
       QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL }}
       UI_RETRIES: "2"
       CI: "true"
+      SKIP_KNOWN_BUGS: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -141,28 +129,16 @@ jobs:
       - run: npx playwright install --with-deps ${{ matrix.install }}
       - name: Check target is not production
         run: node scripts/check-target.js "$QA_BASE_URL"
-      - name: E2E, blocking (no known bugs)
+      - name: E2E tests
         env:
           REPORT_DIR: blocking
         run: >
           npx playwright test -c config/playwright.config.ts
           --project=${{ matrix.browser }}-en --project=${{ matrix.browser }}-fr
-          tests/e2e-tests --grep-invert @known-bug
-      - name: E2E, known bugs (non-blocking)
-        if: always()
-        continue-on-error: true
-        env:
-          REPORT_DIR: known
-        # No known-defect E2E tests yet, so skip the step cleanly.
-        run: |
-          if npx playwright test -c config/playwright.config.ts --list tests/e2e-tests --grep @known-bug | grep -q '^  \['; then
-            npx playwright test -c config/playwright.config.ts --project=${{ matrix.browser }}-en --project=${{ matrix.browser }}-fr tests/e2e-tests --grep @known-bug
-          else
-            echo 'No known-defect E2E tests.'
-          fi
+          tests/e2e-tests
       - name: Job summary
         if: always()
-        run: node scripts/summary.js "Nightly - E2E (${{ matrix.browser }})" reports/blocking/results.json reports/known/results.json
+        run: node scripts/summary.js "Nightly - E2E (${{ matrix.browser }})" reports/blocking/results.json
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4

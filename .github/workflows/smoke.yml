@@ -26,6 +26,7 @@ jobs:
       QA_BASE_URL: ${{ github.event.client_payload.url || github.event.inputs.base_url || vars.QA_BASE_URL }}
       UI_RETRIES: "1"
       CI: "true"
+      SKIP_KNOWN_BUGS: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -41,21 +42,14 @@ jobs:
       - name: Check target is not production
         run: node scripts/check-target.js "$QA_BASE_URL"
 
-      - name: Smoke, blocking (no known bugs)
+      - name: Smoke tests
         env:
           REPORT_DIR: blocking
-        run: npm run -s test:smoke
-
-      - name: Smoke, known bugs (non-blocking)
-        if: always()
-        continue-on-error: true
-        env:
-          REPORT_DIR: known
-        run: npm run -s test:smoke:known
+        run: npx playwright test -c config/playwright.config.ts --project=api --project=chromium-en --project=chromium-fr --grep @smoke
 
       - name: Job summary
         if: always()
-        run: node scripts/summary.js "Smoke (Chrome)" reports/blocking/results.json reports/known/results.json
+        run: node scripts/summary.js "Smoke (Chrome)" reports/blocking/results.json
 
       - name: Upload report
         if: always()

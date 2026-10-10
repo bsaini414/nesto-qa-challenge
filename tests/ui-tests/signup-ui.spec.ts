@@ -88,11 +88,20 @@ test.describe('Negative', () => {
     await expect(page.getByText(strings.errors.passwordMinimum)).toBeVisible();
   });
 
-  test('mismatched confirm password shows the mismatch message', async ({ page, strings, signupPath }) => {
+  test('mismatched confirm password shows the mismatch message', async ({ page, strings, signupPath }, testInfo) => {
     const signup = new SignupPage(page);
     await signup.open(signupPath);
-    await signup.fill({ password: validPassword(), confirmPassword: validPassword() });
+    const pw = validPassword();
+    const confirm = validPassword();
+    await signup.fill({ password: pw, confirmPassword: confirm });
     await signup.submitForm();
+    await page.waitForTimeout(1000);
+    // TEMP DEBUG: what the form shows at this point
+    console.log(`DEBUG ${testInfo.project.name} password=${pw} confirm=${confirm}`);
+    console.log(`DEBUG ${testInfo.project.name} url=${page.url()}`);
+    console.log(`DEBUG ${testInfo.project.name} mismatchShown=${await page.getByText(strings.errors.passwordsMismatch).count()}`);
+    const text = await page.locator('body').innerText();
+    console.log(`DEBUG ${testInfo.project.name} lines=${JSON.stringify(text.split('\n').filter((l) => /password|match|confirm|correspond/i.test(l)))}`);
     await expect(page.getByText(strings.errors.passwordsMismatch)).toBeVisible();
   });
 
