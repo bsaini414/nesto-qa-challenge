@@ -137,6 +137,11 @@ Steps to Reproduce:
 Expected Result: The province list updates to match the selected country.
 Actual Result: The province list still contains only Canadian provinces (Ontario, Quebec, Alberta, and so on)
 
+Related observation (location default, not covered by the steps above):
+- The province is pre-filled from a location lookup (`/api/geolocation/all`). Locally the lookup returns Quebec.
+- When the lookup returns no province, the field stays on "Province of purchase" and is required. Submitting shows "The field is required" on a field the user did not touch.
+- When no provinve is selected, the password mismatch error doesn't show up after adding only missmatched password in the form 
+
 ---
 ### BUG-12: No message when signup succeeds but the automatic login is blocked (medium)
 

@@ -27,6 +27,7 @@ export async function cleanupAccount(request: APIRequestContext, account: Create
 }
 
 type Fixtures = {
+  fullPageOnFailure: void;
   // Auto fixture: when SKIP_KNOWN_BUGS is set (CI), known-defect tests are reported as skipped and not run.
   skipKnownBugsInCi: void;
   // Accounts created during the test. Cleaned up automatically after each test.
@@ -43,6 +44,21 @@ export const test = base.extend<Fixtures>({
         test.skip(true, "Known defect: not run in CI, see docs/BUG_REPORT.md");
       }
       await use();
+    },
+    { auto: true },
+  ],
+
+  // On failure, capture the whole page (not just the viewport) so CI artifacts show fields below the fold.
+  fullPageOnFailure: [
+    async ({ page }, use, testInfo) => {
+      await use();
+      if (testInfo.status === testInfo.expectedStatus) return;
+      try {
+        const png = await page.screenshot({ fullPage: true });
+        await testInfo.attach("full-page-on-failure", { body: png, contentType: "image/png" });
+      } catch {
+        // page may already be closed; the default screenshot is still kept
+      }
     },
     { auto: true },
   ],

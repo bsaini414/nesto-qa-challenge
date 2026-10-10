@@ -92,6 +92,7 @@ test.describe('Negative', () => {
     const signup = new SignupPage(page);
     await signup.open(signupPath);
     await signup.fill({ password: validPassword(), confirmPassword: validPassword() });
+    await signup.region.selectOption({ value: 'QC' });
     await signup.submitForm();
     await expect(page.getByText(strings.errors.passwordsMismatch)).toBeVisible();
   });
@@ -100,6 +101,7 @@ test.describe('Negative', () => {
     const signup = new SignupPage(page);
     await signup.open(signupPath);
     await signup.fill({ firstName: 'Test1', email: 'not-an-email', phone: '123', password: 'QaShort1', confirmPassword: 'QaShort2' });
+    await signup.region.selectOption({ value: 'QC' });
 
     const requests: string[] = [];
     page.on('request', (r) => { if (r.url().includes('/api/accounts')) requests.push(r.url()); });
@@ -262,4 +264,3 @@ test.describe('Autofill', () => {
     await expect(signup.confirmPassword).toHaveAttribute('autocomplete', 'new-password');
   });
 });
-
