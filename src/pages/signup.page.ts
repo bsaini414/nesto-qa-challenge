@@ -71,19 +71,25 @@ export class SignupPage {
     phoneCountry?: string;
     consent?: boolean;
   }) {
-    if (data.firstName !== undefined) await this.firstName.fill(data.firstName);
-    if (data.lastName !== undefined) await this.lastName.fill(data.lastName);
-    if (data.phoneCountry !== undefined) await this.phoneCountry.selectOption({ label: data.phoneCountry });
-    if (data.phone !== undefined) await this.phone.fill(data.phone);
-    if (data.email !== undefined) await this.email.fill(data.email);
-    if (data.password !== undefined) await this.password.fill(data.password);
-    if (data.confirmPassword !== undefined) await this.confirmPassword.fill(data.confirmPassword);
-    if (data.region !== undefined) await this.region.selectOption({ label: data.region });
-    if (data.consent) await this.consent.check();
+    if (data.firstName !== undefined) { await this.reveal(this.firstName); await this.firstName.fill(data.firstName); }
+    if (data.lastName !== undefined) { await this.reveal(this.lastName); await this.lastName.fill(data.lastName); }
+    if (data.phoneCountry !== undefined) { await this.reveal(this.phoneCountry); await this.phoneCountry.selectOption({ label: data.phoneCountry }); }
+    if (data.phone !== undefined) { await this.reveal(this.phone); await this.phone.fill(data.phone); }
+    if (data.email !== undefined) { await this.reveal(this.email); await this.email.fill(data.email); }
+    if (data.password !== undefined) { await this.reveal(this.password); await this.password.fill(data.password); }
+    if (data.confirmPassword !== undefined) { await this.reveal(this.confirmPassword); await this.confirmPassword.fill(data.confirmPassword); }
+    if (data.region !== undefined) { await this.reveal(this.region); await this.region.selectOption({ label: data.region }); }
+    if (data.consent) { await this.reveal(this.consent); await this.consent.check(); }
   }
 
   async submitForm() {
+    await this.reveal(this.submit);
     await this.submit.click();
+  }
+
+  /** Scroll the element into view before acting on it. Narrow screens put lower fields below the fold. */
+  private async reveal(locator: Locator) {
+    await locator.scrollIntoViewIfNeeded();
   }
 
   /** On narrow screens the header links sit inside the burger menu. Open it when it is shown. */
