@@ -1,0 +1,66 @@
+name: Smoke
+
+# Runs against a QA or staging URL. Triggered by the app repo after a deploy or started by hand with a URL (guarded by scripts/check-target.js).
+on:
+  repository_dispatch:
+    types: [staging-deployed]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Target URL (must be a QA, staging or preview host)"
+        required: false
+        default: ""
+
+# A newer run for the same branch cancels the older one.
+concurrency:
+  group: smoke-${{ github.event.client_payload.branch || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Smoke (Chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    env:
+      QA_BASE_URL: ${{ github.event.client_payload.url || github.event.inputs.base_url || vars.QA_BASE_URL }}
+      UI_RETRIES: "1"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Check target is not production
+        run: node scripts/check-target.js "$QA_BASE_URL"
+
+      - name: Smoke, blocking (no known bugs)
+        env:
+          REPORT_DIR: blocking
+        run: npm run -s test:smoke
+
+      - name: Smoke, known bugs (non-blocking)
+        if: always()
+        continue-on-error: true
+        env:
+          REPORT_DIR: known
+        run: npm run -s test:smoke:known
+
+      - name: Job summary
+        if: always()
+        run: node scripts/summary.js "Smoke (Chrome)" reports/blocking/results.json reports/known/results.json
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: reports/
+          retention-days: 14

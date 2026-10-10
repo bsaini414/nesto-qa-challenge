@@ -24,7 +24,7 @@ async function post(request: APIRequestContext, data: object, created?: CreatedA
 // Password of exact length n that meets the policy (upper, lower, digit).
 const passwordOfLength = (n: number) => 'Qa' + 'b'.repeat(n - 5) + 'Z9' + '1';
 
-test.describe('Positive', () => {
+test.describe('Positive', { tag: '@smoke' }, () => {
   test('201 and response body echoes the submitted account (EN)', async ({ request, createdAccounts }) => {
     const payload = signupFormPayload({ language: 'en' });
     const { status, body } = await post(request, payload, createdAccounts);
@@ -65,7 +65,7 @@ test.describe('Positive', () => {
   });
 });
 
-test.describe('Negative - field validation', () => {
+test.describe('Negative - field validation', { tag: '@smoke' }, () => {
   // status: expected per the spec (400 for format problems, 422 for field-level validation).
   const cases: Array<{ name: string; overrides: Partial<SignupPayload>; status: number; field?: string}> = [
     { name: 'email with no @', overrides: { email: 'qa.nodomain.qa-nesto.test' }, status: 422, field: 'email' },
@@ -110,7 +110,7 @@ test.describe('Negative - field validation', () => {
   }
 });
 
-test.describe('Negative - missing and wrong-type fields', () => {
+test.describe('Negative - missing and wrong-type fields', { tag: '@smoke' }, () => {
   for (const field of ['firstName', 'lastName', 'phone', 'region', 'language'] as const) {
     test(`rejects a request with ${field} omitted`, knownBug('BUG-01'), async ({ request }) => {
       const payload: Record<string, unknown> = { ...signupFormPayload() };
@@ -153,7 +153,7 @@ test.describe('Negative - missing and wrong-type fields', () => {
   });
 });
 
-test.describe('Negative - empty string combinations', () => {
+test.describe('Negative - empty string combinations', { tag: '@smoke' }, () => {
   // Every single required field set to '', then every pair of them.
   const combos: string[][] = [];
   for (const f of REQUIRED_FIELDS) combos.push([f]);
@@ -196,7 +196,7 @@ test.describe('Negative - empty string combinations', () => {
   });
 });
 
-test.describe('Negative - duplicate account', () => {
+test.describe('Negative - duplicate account', { tag: '@smoke' }, () => {
   test('rejects a second signup with the same email with 409', knownBug('BUG-05'), async ({ request, createdAccounts }) => {
     const payload = signupFormPayload();
     const first = await post(request, payload, createdAccounts); // valid account: record for cleanup
@@ -207,7 +207,7 @@ test.describe('Negative - duplicate account', () => {
   });
 });
 
-test.describe('Valid input edge cases', () => {
+test.describe('Valid input edge cases', { tag: '@smoke' }, () => {
   // Valid names and numbers that the API should accept.
   test('201 for a name with accents (Élodie)', async ({ request, createdAccounts }) => {
     const { status } = await post(request, signupFormPayload({ firstName: 'Élodie' }), createdAccounts);
@@ -233,7 +233,7 @@ test.describe('Valid input edge cases', () => {
   });
 });
 
-test.describe('Input format and size', () => {
+test.describe('Input format and size', { tag: '@smoke' }, () => {
   test('422 for a firstName longer than the allowed length', async ({ request }) => {
     const { status, body } = await post(request, signupFormPayload({ firstName: 'A'.repeat(200) }));
     expect(status).toBe(422);
@@ -259,7 +259,7 @@ test.describe('Input format and size', () => {
   });
 });
 
-test.describe('Request format', () => {
+test.describe('Request format', { tag: '@smoke' }, () => {
   test('400 for malformed JSON', async ({ request }) => {
     const res = await request.post(ENDPOINT, {
       headers: { 'content-type': 'application/json' },
@@ -279,7 +279,7 @@ test.describe('Request format', () => {
   });
 });
 
-test.describe('Negative - duplicate email variants', () => {
+test.describe('Negative - duplicate email variants', { tag: '@smoke' }, () => {
   test('rejects a duplicate email that differs only in case', async ({ request, createdAccounts }) => {
     const payload = signupFormPayload();
     const first = await post(request, payload, createdAccounts);
@@ -290,7 +290,7 @@ test.describe('Negative - duplicate email variants', () => {
   });
 });
 
-test.describe('Negative - injection and whitespace', () => {
+test.describe('Negative - injection and whitespace', { tag: '@smoke' }, () => {
   // Assumption (see ASSUMPTIONS.md): names are plain text. Markup and SQL fragments
   // should be rejected, not stored. Current behaviour: accepted with 201 (BUG-07).
   test('rejects markup in firstName', knownBug('BUG-07'), async ({ request }) => {

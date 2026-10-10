@@ -1,0 +1,172 @@
+name: Nightly regression
+
+# Full suite every night on Chrome, Firefox, Safari (WebKit) and a mobile profile at 02:00 UTC 
+# API runs once. UI and E2E run as separate jobs per browser, in parallel.
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Target URL (must be a QA, staging or preview host)"
+        required: false
+        default: ""
+
+jobs:
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    env:
+      QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL }}
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check target is not production
+        run: node scripts/check-target.js "$QA_BASE_URL"
+      - name: API, blocking (no known bugs)
+        env:
+          REPORT_DIR: blocking
+        run: npx playwright test -c config/playwright.config.ts --project=api --grep-invert @known-bug
+      - name: API, known bugs (non-blocking)
+        if: always()
+        continue-on-error: true
+        env:
+          REPORT_DIR: known
+        run: npx playwright test -c config/playwright.config.ts --project=api --grep @known-bug
+      - name: Job summary
+        if: always()
+        run: node scripts/summary.js "Nightly - API" reports/blocking/results.json reports/known/results.json
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-api-report
+          path: reports/
+          retention-days: 14
+
+  # UI and E2E share the same browser matrix but run as separate jobs
+  ui:
+    name: UI (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: staging
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chromium
+            install: chromium
+          - browser: firefox
+            install: firefox
+          - browser: webkit
+            install: webkit
+          - browser: mobile
+            install: chromium
+    env:
+      QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL }}
+      UI_RETRIES: "2"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps ${{ matrix.install }}
+      - name: Check target is not production
+        run: node scripts/check-target.js "$QA_BASE_URL"
+      - name: UI, blocking (no known bugs)
+        env:
+          REPORT_DIR: blocking
+        run: >
+          npx playwright test -c config/playwright.config.ts
+          --project=${{ matrix.browser }}-en --project=${{ matrix.browser }}-fr
+          tests/ui-tests --grep-invert @known-bug
+      - name: UI, known bugs (non-blocking)
+        if: always()
+        continue-on-error: true
+        env:
+          REPORT_DIR: known
+        run: >
+          npx playwright test -c config/playwright.config.ts
+          --project=${{ matrix.browser }}-en --project=${{ matrix.browser }}-fr
+          tests/ui-tests --grep @known-bug
+      - name: Job summary
+        if: always()
+        run: node scripts/summary.js "Nightly - UI (${{ matrix.browser }})" reports/blocking/results.json reports/known/results.json
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-ui-${{ matrix.browser }}-report
+          path: reports/
+          retention-days: 14
+
+  e2e:
+    name: E2E (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: staging
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - browser: chromium
+            install: chromium
+          - browser: firefox
+            install: firefox
+          - browser: webkit
+            install: webkit
+          - browser: mobile
+            install: chromium
+    env:
+      QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL }}
+      UI_RETRIES: "2"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps ${{ matrix.install }}
+      - name: Check target is not production
+        run: node scripts/check-target.js "$QA_BASE_URL"
+      - name: E2E, blocking (no known bugs)
+        env:
+          REPORT_DIR: blocking
+        run: >
+          npx playwright test -c config/playwright.config.ts
+          --project=${{ matrix.browser }}-en --project=${{ matrix.browser }}-fr
+          tests/e2e-tests --grep-invert @known-bug
+      - name: E2E, known bugs (non-blocking)
+        if: always()
+        continue-on-error: true
+        env:
+          REPORT_DIR: known
+        # No known-defect E2E tests yet, so skip the step cleanly.
+        run: |
+          if npx playwright test -c config/playwright.config.ts --list tests/e2e-tests --grep @known-bug | grep -q '^  \['; then
+            npx playwright test -c config/playwright.config.ts --project=${{ matrix.browser }}-en --project=${{ matrix.browser }}-fr tests/e2e-tests --grep @known-bug
+          else
+            echo 'No known-defect E2E tests.'
+          fi
+      - name: Job summary
+        if: always()
+        run: node scripts/summary.js "Nightly - E2E (${{ matrix.browser }})" reports/blocking/results.json reports/known/results.json
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-e2e-${{ matrix.browser }}-report
+          path: reports/
+          retention-days: 14

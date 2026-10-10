@@ -18,7 +18,7 @@ const validForm = (overrides: Parameters<typeof signupFormData>[0] = {}) => sign
 
 
 test.describe('Positive', () => {
-  test('submits the form with consent unticked and gets no error', async ({ page, signupPath }) => {
+  test('submits the form with consent unticked and gets no error', { tag: '@smoke' }, async ({ page, signupPath }) => {
     // API is mocked: the UI check is that the form sends the right request. No real account is created.
     const sent: Record<string, unknown>[] = [];
     await page.route('**/api/accounts', (route) => {
@@ -43,7 +43,7 @@ test.describe('Positive', () => {
 });
 
 test.describe('Negative', () => {
-  test('empty submit shows the required message and sends no request', async ({ page, strings, signupPath }) => {
+  test('empty submit shows the required message and sends no request', { tag: '@smoke' }, async ({ page, strings, signupPath }) => {
     const signup = new SignupPage(page);
     await signup.open(signupPath);
 
@@ -116,7 +116,7 @@ test.describe('Negative', () => {
 test.describe('Server responses', () => {
   // The API is mocked here so each status is exercised deterministically.
   for (const status of [400, 409, 500] as const) {
-    test(`API ${status} shows the generic error and stays on signup`, async ({ page, strings, signupPath }) => {
+    test(`API ${status} shows the generic error and stays on signup`, status === 500 ? { tag: '@smoke' } : {}, async ({ page, strings, signupPath }) => {
       await page.route('**/api/accounts', (route) =>
         route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ error: 'bad format' }) }),
       );
@@ -211,7 +211,7 @@ test.describe('Phone country sets the dialing code', () => {
   ];
 
   for (const c of cases) {
-    test(`choosing ${c.country} changes the country and sends ${c.prefix}`, async ({ page, signupPath }) => {
+    test(`choosing ${c.country} changes the country and sends ${c.prefix}`, c.country === 'France' ? { tag: '@smoke' } : {}, async ({ page, signupPath }) => {
       // API is mocked: the check is what the form sends. No real account is created.
       const sent: Record<string, unknown>[] = [];
       await page.route('**/api/accounts', (route) => {

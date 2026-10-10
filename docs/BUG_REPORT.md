@@ -3,8 +3,6 @@
 Endpoint: `POST https://app.qa.nesto.ca/api/accounts`
 
 
-Tests that cover these are in `tests/signup-api.spec.ts`. They fail today.
-
 ---
 
 ### BUG-01: Empty or missing required fields create an account (high)
@@ -106,7 +104,7 @@ Failing test: `form fields declare autocomplete tokens for browser autofill` (ui
 
 ---
 
-### BUG-09: Duplicate form field IDs (medium, not reproduced)
+### BUG-09: Duplicate form field IDs (medium)
 
 Chrome's Issues panel reports "Multiple form field elements in the same form have the same id attribute value" on 7 resources. A user-supplied element dump lists these seven controls, which have ids field-2, field-4, field-6, field-8, field-10, field-12 and field-14.
 
@@ -118,7 +116,7 @@ Steps to Reproduce:
 
 ---
 
-### BUG-10: Clicking on Nesto icon navigated to login page
+### BUG-10: Clicking on Nesto icon navigated to login page (low)
 
 Steps to Reproduce:
 1. Navigate to https://app.qa.nesto.ca/signup
@@ -129,7 +127,7 @@ Actual Result: The app navigates to the login page
 
 ---
 
-### BUG-11: Selecting another country doesn't change the province of purchase selection
+### BUG-11: Selecting another country doesn't change the province of purchase selection (high)
 
 Steps to Reproduce:
 1. Navigate to https://app.qa.nesto.ca/signup
@@ -140,5 +138,22 @@ Expected Result: The province list updates to match the selected country.
 Actual Result: The province list still contains only Canadian provinces (Ontario, Quebec, Alberta, and so on)
 
 ---
+### BUG-12: No message when signup succeeds but the automatic login is blocked (medium)
 
+Steps to reproduce:
+1. Open the signup page and submit a valid form.
+2. Run several signups at the same time (or repeat quickly from the same machine).
 
+Expected: either the user is taken to Get A Quote, or a clear message tells them what to do next (for example, log in again or contact support).
+
+Actual: the account is created (`POST /api/accounts` returns 201). The app then logs the user in through `auth.nesto.ca`, and Auth0 returns `429`:
+
+```
+{"error":"too_many_attempts","error_description":"We have detected suspicious login behavior and further attempts will be blocked. Please contact the administrator."}
+```
+
+The user stays on `/signup`, and no message appears on the page.
+
+Note: the block itself may be Auth0's suspicious-login protection working as designed for the QA tenant. The defect is the silent failure after a successful account creation.
+
+---

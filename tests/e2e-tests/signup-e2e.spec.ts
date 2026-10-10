@@ -43,6 +43,10 @@ test.describe('Field and label coverage', () => {
   });
 });
 
+/**
+ * Switches language once, to the target language.
+ * Desktop: header FR/EN link. Narrow screens: the language dropdown inside the burger menu.
+ */
 test.describe('Navigation', () => {
   test('language switch goes EN to FR and back, and FR to EN and back', async ({ page, lang }) => {
     const signup = new SignupPage(page);
@@ -50,33 +54,37 @@ test.describe('Navigation', () => {
     const other = lang === 'fr' ? '/signup' : '/fr/signup';
     const otherLang = lang === 'fr' ? 'en' : 'fr';
     await signup.open(start);
+    test.skip(await signup.isPhoneLayout(), 'desktop header switch; phones use the burger menu (see Mobile burger menu)');
 
-    await page.getByTestId('header-language-switch').click();
+    await signup.switchLanguage(lang, otherLang);
     await expect(page).toHaveURL(new RegExp(`${other}$`));
-    await expect(page.locator('html')).toHaveAttribute('lang', otherLang);
+    await expect(signup.htmlElement).toHaveAttribute('lang', otherLang);
 
-    await page.getByTestId('header-language-switch').click();
+    await signup.switchLanguage(otherLang, lang);
     await expect(page).toHaveURL(new RegExp(`${start}$`));
-    await expect(page.locator('html')).toHaveAttribute('lang', lang);
+    await expect(signup.htmlElement).toHaveAttribute('lang', lang);
   });
 });
 
 test.describe('Login links', () => {
-  test('header Login button opens the login page', async ({ page, lang }) => {
+  test('header Login button opens the login page', { tag: '@smoke' }, async ({ page, lang }) => {
     const signup = new SignupPage(page);
     await signup.open(lang === 'fr' ? '/fr/signup' : '/signup');
+    test.skip(await signup.isPhoneLayout(), 'desktop header login; phones use the burger menu (see Mobile burger menu)');
 
-    await page.getByRole('link', { name: NAV[lang].headerLogin, exact: true }).click();
+    const loginLink = signup.pageLink(NAV[lang].headerLogin, true);
+    await expect(loginLink).toBeVisible();
+    await loginLink.click();
     await expect(page).toHaveURL(/auth\.nesto\.ca\/login/);
     // Auth0 login form (served in English in both projects).
-    await expect(page.locator('input').first()).toBeVisible();
+    await expect(signup.auth0FirstInput).toBeVisible();
   });
 
   test('"Already have an account? Log in" opens the login page', async ({ page, lang }) => {
     const signup = new SignupPage(page);
     await signup.open(lang === 'fr' ? '/fr/signup' : '/signup');
 
-    await page.getByRole('link', { name: NAV[lang].formLogin, exact: true }).click();
+    await signup.pageLink(NAV[lang].formLogin).click();
     await expect(page).toHaveURL(/auth\.nesto\.ca\/login/);
   });
 
@@ -84,22 +92,22 @@ test.describe('Login links', () => {
     const signup = new SignupPage(page);
     await signup.open(lang === 'fr' ? '/fr/signup' : '/signup');
 
-    await page.getByRole('link', { name: NAV[lang].formLogin, exact: true }).click();
+    await signup.pageLink(NAV[lang].formLogin).click();
     await expect(page).toHaveURL(/auth\.nesto\.ca\/login/);
 
-    await page.getByRole('link', { name: NAV[lang].authSignup }).click();
+    await signup.pageLink(NAV[lang].authSignup).click();
     await expect(page).toHaveURL(/\/signup$/);
     await expect(signup.firstName).toBeVisible();
   });
 });
 
 test.describe('Legal links', () => {
-  test('Terms of Service link opens the terms page', async ({ page, request, lang }) => {
+  test('Terms of Service link opens the terms page', { tag: '@smoke' }, async ({ page, request, lang }) => {
     const signup = new SignupPage(page);
     await signup.open(lang === 'fr' ? '/fr/signup' : '/signup');
 
     const popupPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: NAV[lang].terms }).click();
+    await signup.pageLink(NAV[lang].terms).click();
     const popup = await popupPromise;
     await popup.waitForLoadState('domcontentloaded');
     await expect(popup).toHaveURL(NAV[lang].termsUrl);
@@ -108,12 +116,12 @@ test.describe('Legal links', () => {
     expect(res.status()).toBe(200);
   });
 
-  test('Privacy Policy link opens the privacy page', async ({ page, request, lang }) => {
+  test('Privacy Policy link opens the privacy page', { tag: '@smoke' }, async ({ page, request, lang }) => {
     const signup = new SignupPage(page);
     await signup.open(lang === 'fr' ? '/fr/signup' : '/signup');
 
     const popupPromise = page.waitForEvent('popup');
-    await page.getByRole('link', { name: NAV[lang].privacy }).click();
+    await signup.pageLink(NAV[lang].privacy).click();
     const popup = await popupPromise;
     await popup.waitForLoadState('domcontentloaded');
     await expect(popup).toHaveURL(NAV[lang].privacyUrl);
@@ -124,7 +132,7 @@ test.describe('Legal links', () => {
 });
 
 test.describe('Successful signup', () => {
-  test('creates an account, returns 201 and lands on Get A Quote', async ({ page, signupPath, createdAccounts }) => {
+  test('creates an account, returns 201 and lands on Get A Quote', { tag: '@smoke' }, async ({ page, signupPath, createdAccounts }) => {
     const signup = new SignupPage(page);
     await signup.open(signupPath);
 
@@ -139,5 +147,91 @@ test.describe('Successful signup', () => {
 
     await page.waitForURL(/\/getaquote(\/[a-z]{2})?$/, { timeout: waitMs('veryLong') });
     await expect(page).toHaveURL(/\/getaquote(\/[a-z]{2})?$/);
+  });
+});
+
+test.describe('Mobile burger menu', () => {
+  // Phone layout only: the desktop header has these links in view, so the test skips there.
+  const requirePhone = async (signup: SignupPage) => {
+    if (!(await signup.isPhoneLayout())) test.skip(true, 'phone layout only');
+  };
+
+  test('Terms of service in the burger menu opens the terms page', async ({ page, request, lang }) => {
+    const signup = new SignupPage(page);
+    await signup.open(lang === 'fr' ? '/fr/signup' : '/signup');
+    await requirePhone(signup);
+
+    await signup.openHeaderMenu();
+    const popupPromise = page.waitForEvent('popup');
+    await signup.menuLink(NAV[lang].terms).click();
+    const popup = await popupPromise;
+    await popup.waitForLoadState('domcontentloaded');
+    await expect(popup).toHaveURL(NAV[lang].termsUrl);
+
+    const res = await request.get(NAV[lang].termsUrl, { failOnStatusCode: false });
+    expect(res.status()).toBe(200);
+  });
+
+  for (const key of ['howItWorks', 'careers'] as const) {
+    test(`${key} in the burger menu opens the page in a new tab`, async ({ page, request, lang }) => {
+      const signup = new SignupPage(page);
+      await signup.open(lang === 'fr' ? '/fr/signup' : '/signup');
+      await requirePhone(signup);
+
+      await signup.openHeaderMenu();
+      const link = { name: NAV[lang][key], url: NAV[lang][`${key}Url`] };
+      const popupPromise = page.waitForEvent('popup');
+      await signup.menuLink(link.name).click();
+      const popup = await popupPromise;
+      await popup.waitForLoadState('domcontentloaded');
+      await expect(popup).toHaveURL(link.url);
+
+      const res = await request.get(link.url, { failOnStatusCode: false });
+      expect(res.status()).toBe(200);
+    });
+  }
+
+  test('Privacy policy in the burger menu opens the privacy page', async ({ page, request, lang }) => {
+    const signup = new SignupPage(page);
+    await signup.open(lang === 'fr' ? '/fr/signup' : '/signup');
+    await requirePhone(signup);
+
+    await signup.openHeaderMenu();
+    const popupPromise = page.waitForEvent('popup');
+    await signup.menuLink(NAV[lang].privacy).click();
+    const popup = await popupPromise;
+    await popup.waitForLoadState('domcontentloaded');
+    await expect(popup).toHaveURL(NAV[lang].privacyUrl);
+
+    const res = await request.get(NAV[lang].privacyUrl, { failOnStatusCode: false });
+    expect(res.status()).toBe(200);
+  });
+
+  test('language switch in the burger menu goes EN to FR and back, and FR to EN and back', async ({ page, lang }) => {
+    const signup = new SignupPage(page);
+    const start = lang === 'fr' ? '/fr/signup' : '/signup';
+    const other = lang === 'fr' ? '/signup' : '/fr/signup';
+    const otherLang = lang === 'fr' ? 'en' : 'fr';
+    await signup.open(start);
+    await requirePhone(signup);
+
+    await signup.switchLanguage(lang, otherLang);
+    await expect(page).toHaveURL(new RegExp(`${other}$`));
+    await expect(page.locator('html')).toHaveAttribute('lang', otherLang);
+
+    await signup.switchLanguage(otherLang, lang);
+    await expect(page).toHaveURL(new RegExp(`${start}$`));
+    await expect(page.locator('html')).toHaveAttribute('lang', lang);
+  });
+
+  test('Login in the burger menu opens the login page', { tag: '@smoke' }, async ({ page, lang }) => {
+    const signup = new SignupPage(page);
+    await signup.open(lang === 'fr' ? '/fr/signup' : '/signup');
+    await requirePhone(signup);
+
+    await signup.openHeaderMenu();
+    await signup.menuLink(NAV[lang].headerLogin).click();
+    await expect(page).toHaveURL(/auth\.nesto\.ca\/login/);
+    await expect(signup.auth0FirstInput).toBeVisible();
   });
 });

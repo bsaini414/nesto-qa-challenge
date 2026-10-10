@@ -76,7 +76,7 @@ The API doesn't enforce several of these. See `BUG_REPORT.md`.
 - Names with accents and apostrophes (`Élodie`, `O'Brien`) are accepted.
 - Phone numbers from other countries (`+33...`) are accepted.
 - Unknown extra fields are ignored and not returned.
-- Names over 200 characters and emails over 250 characters return `422`. We don't know the exact limits.
+- Names over 200 characters and emails over 250 characters return `422`. I don't know the exact limits.
 - Region and language codes are case-sensitive. `on` and `EN` return `422`.
 - Malformed JSON and a non-JSON content type return `400`.
 - Leading and trailing spaces are trimmed (` Spike` is saved as `Spike`).
@@ -88,3 +88,24 @@ The API doesn't enforce several of these. See `BUG_REPORT.md`.
 
 - Login. It is a separate feature, so the suite only checks that the login links reach the login page.
 - Validation messages shown by the UI. The API tests cover the server side.
+
+## CI/CD
+
+- The application code lives in another repository. This repository only tests it.
+- The app repository holds a token that can send `repository_dispatch` events to this repository. It is stored as a secret in the app repository.
+- The app repository sends the target URL, the commit SHA and the branch in the dispatch payload.
+- The target is a shared QA or staging environment. Production is never a target.
+- `scripts/check-target.js` refuses any host that does not look like a QA, staging, preview or UAT host. This is a name check, not a real access control.
+- The trigger for smoke is a successful deploy to staging, not a git push.
+- Smoke can also be started by hand from the Actions tab, with a URL input.
+- Results are reported to the app pull request as a commit status. This repository needs a second token that can write statuses on the app repository. Not built here.
+- The mobile header Login link sits inside the burger menu on narrow screens and I am assuming that it's a design choice to have differnt options under burger menu 
+
+## Automatic login after signup
+
+- Signup is two calls: `POST /api/accounts` creates the account and returns `201`, then the app logs the user in through `auth.nesto.ca`.
+- Auth0 can block that login with `429 too_many_attempts` ("suspicious login behavior"). The block has no `Retry-After` header.
+- Under parallel load from one machine, some logins are blocked (4 of 8 browser runs). A single run succeeds.
+- I assume the block is Auth0's suspicious-login protection for the QA tenant, not the API's own limit. The QA team should confirm.
+- The silent failure (no message after a 201 and a blocked login) is logged as BUG-12.
+
