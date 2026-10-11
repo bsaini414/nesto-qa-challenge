@@ -22,6 +22,8 @@
     "invalidEmail": "Invalid email",
     "invalidName": "Invalid name",
     "passwordMinimum": "Minimum of 12 letters required",
+    "passwordMaximum": "Maximum of 32 letters required",
+    "passwordComposition": "Password must contain at least one uppercase letter, one lowercase letter and one number",
     "passwordPolicy": "Password must be between 12 and 32 characters and contain one uppercase letter, one lowercase letter and one number.",
     "passwordsMismatch": "Passwords do not match",
     "serverError": "Something went wrong! Please try again and if you continue to have trouble feel free to contact your advisor"

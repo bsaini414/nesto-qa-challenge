@@ -1,6 +1,5 @@
 import { Page, Locator } from '@playwright/test';
-import { waitMs } from '../utils/wait';
-
+import type { Locale } from '../fixtures/base.fixture';
 
 export class SignupPage {
   readonly firstName: Locator;
@@ -13,51 +12,42 @@ export class SignupPage {
   readonly confirmPassword: Locator;
   readonly consent: Locator;
   readonly submit: Locator;
-  readonly cookieAccept: Locator;
   readonly burgerButton: Locator;
-  readonly burgerLanguageName: Locator;
+  readonly burgerMenu: Locator;
   readonly headerLanguageSwitch: Locator;
   readonly menuNavigation: Locator;
   readonly htmlElement: Locator;
-  /** First input on the Auth0 login form, after the signup page's Login link. */
-  readonly auth0FirstInput: Locator;
+  // Email field on the Auth0 login form, after the signup page's Login link.
+  readonly auth0Email: Locator;
 
-  constructor(readonly page: Page) {
-    this.firstName = page.locator('input[name="firstName"]');
-    this.lastName = page.locator('input[name="lastName"]');
+  constructor(readonly page: Page, readonly strings: Locale) {
+    const { labels } = strings;
+    this.firstName = page.getByLabel(labels.firstName, { exact: true });
+    this.lastName = page.getByLabel(labels.lastName, { exact: true });
+    // By name, not label: its accessible name is not translated on /fr/signup (BUG-13).
     this.phoneCountry = page.locator('select[name="phoneCountry"]');
-    this.phone = page.locator('input[name="phone"]');
-    this.region = page.locator('select[aria-label="region"]');
-    this.email = page.locator('input[name="email"]');
-    this.password = page.locator('input[name="password"]');
-    this.confirmPassword = page.locator('input[name="passwordConfirmation"]');
-    this.consent = page.locator('input[name="leadDistributeConsentAgreement"]');
-    this.submit = page.locator('button[type="submit"]');
-    this.cookieAccept = page.getByRole('button', { name: /agree and close|accepter|fermer/i });
+    this.phone = page.getByLabel(labels.phone, { exact: true });
+    this.region = page.getByRole('combobox', { name: labels.region, exact: true });
+    this.email = page.getByLabel(labels.email, { exact: true });
+    this.password = page.getByLabel(labels.password, { exact: true });
+    this.confirmPassword = page.getByLabel(labels.confirmPassword, { exact: true });
+    this.consent = page.getByRole('checkbox');
+    this.submit = page.getByRole('button', { name: strings.submit, exact: true });
     this.burgerButton = page.getByTestId('open-burger-menu');
-    this.burgerLanguageName = page.locator('[class*="burger-menu_language-button-name"]');
+    this.burgerMenu = page.getByTestId('burger-menu');
     this.headerLanguageSwitch = page.getByTestId('header-language-switch');
     this.menuNavigation = page.getByRole('navigation');
     this.htmlElement = page.locator('html');
-    this.auth0FirstInput = page.locator('input').first();
+    this.auth0Email = page.getByRole('textbox', { name: /email/i });
   }
 
   async open(path: string) {
-    // networkidle: the form must be hydrated before fields are filled
-    await this.page.goto(path, { waitUntil: 'networkidle' });
+    // The geolocation call is made by the client app once it has hydrated, so it
+    // marks the point where the form is interactive (no networkidle, no sleeps).
+    const hydrated = this.page.waitForResponse('**/api/geolocation/all');
+    await this.page.goto(path);
+    await hydrated;
     await this.firstName.waitFor();
-    await this.dismissCookieBanner();
-  }
-
-  async dismissCookieBanner() {
-    const banner = this.cookieAccept.first();
-    const appeared = await banner
-      .waitFor({ state: 'visible', timeout: waitMs('long') })
-      .then(() => true)
-      .catch(() => false);
-    if (!appeared) return;
-    await banner.click();
-    await banner.waitFor({ state: 'hidden', timeout: waitMs('long') });
   }
 
   async fill(data: {
@@ -71,25 +61,19 @@ export class SignupPage {
     phoneCountry?: string;
     consent?: boolean;
   }) {
-    if (data.firstName !== undefined) { await this.reveal(this.firstName); await this.firstName.fill(data.firstName); }
-    if (data.lastName !== undefined) { await this.reveal(this.lastName); await this.lastName.fill(data.lastName); }
-    if (data.phoneCountry !== undefined) { await this.reveal(this.phoneCountry); await this.phoneCountry.selectOption({ label: data.phoneCountry }); }
-    if (data.phone !== undefined) { await this.reveal(this.phone); await this.phone.fill(data.phone); }
-    if (data.email !== undefined) { await this.reveal(this.email); await this.email.fill(data.email); }
-    if (data.password !== undefined) { await this.reveal(this.password); await this.password.fill(data.password); }
-    if (data.confirmPassword !== undefined) { await this.reveal(this.confirmPassword); await this.confirmPassword.fill(data.confirmPassword); }
-    if (data.region !== undefined) { await this.reveal(this.region); await this.region.selectOption({ label: data.region }); }
-    if (data.consent) { await this.reveal(this.consent); await this.consent.check(); }
+    if (data.firstName !== undefined) await this.firstName.fill(data.firstName);
+    if (data.lastName !== undefined) await this.lastName.fill(data.lastName);
+    if (data.phoneCountry !== undefined) await this.phoneCountry.selectOption({ label: data.phoneCountry });
+    if (data.phone !== undefined) await this.phone.fill(data.phone);
+    if (data.email !== undefined) await this.email.fill(data.email);
+    if (data.password !== undefined) await this.password.fill(data.password);
+    if (data.confirmPassword !== undefined) await this.confirmPassword.fill(data.confirmPassword);
+    if (data.region !== undefined) await this.region.selectOption({ label: data.region });
+    if (data.consent) await this.consent.check();
   }
 
   async submitForm() {
-    await this.reveal(this.submit);
     await this.submit.click();
-  }
-
-  /** Scroll the element into view before acting on it. Narrow screens put lower fields below the fold. */
-  private async reveal(locator: Locator) {
-    await locator.scrollIntoViewIfNeeded();
   }
 
   /** On narrow screens the header links sit inside the burger menu. Open it when it is shown. */
@@ -119,19 +103,19 @@ export class SignupPage {
    */
   async switchLanguage(pageLang: 'en' | 'fr', target: 'en' | 'fr') {
     if (await this.isPhoneLayout()) {
-      const langName = this.burgerLanguageName;
       // The menu may already be open after a previous switch; clicking the burger again would close it.
-      if (!(await langName.isVisible())) await this.openHeaderMenu();
-      await langName.click();
-      await this.page.locator('span', { hasText: new RegExp(`^${LANGUAGE_NAME[pageLang][target]}$`) }).first().click();
+      if (!(await this.burgerMenu.isVisible())) await this.openHeaderMenu();
+      // The dropdown shows the current language; opening it lists both languages in a
+      // popover rendered outside the menu, so the option is looked up on the page.
+      await this.burgerMenu.getByText(LANGUAGE_NAME[pageLang][pageLang], { exact: true }).click();
+      await this.page.getByText(LANGUAGE_NAME[pageLang][target], { exact: true }).click();
     } else {
       await this.headerLanguageSwitch.click();
     }
   }
-
 }
 
-// Link text and targets on the signup page 
+// Link text and targets on the signup page
 export const NAV = {
   en: {
     headerLogin: 'Login',
@@ -159,10 +143,10 @@ export const NAV = {
     careers: 'Carrières',
     careersUrl: 'https://www.nesto.ca/fr/carrieres/',
   },
-} as const;// The dropdown labels are translated with the page: on /signup they read English and French, on /fr/signup Anglais and Français.
+} as const;
+
+// The dropdown labels are translated with the page on /signup they read English and French, on /fr/signup Anglais and Français.
 const LANGUAGE_NAME: Record<'en' | 'fr', Record<'en' | 'fr', string>> = {
   en: { en: 'English', fr: 'French' },
   fr: { en: 'Anglais', fr: 'Français' },
 };
-
-

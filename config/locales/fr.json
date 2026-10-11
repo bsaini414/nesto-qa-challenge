@@ -6,7 +6,7 @@
   "labels": {
     "firstName": "Prénom",
     "lastName": "Nom",
-    "phoneCountry": "Phone number country",
+    "phoneCountry": "Pays du numéro de téléphone",
     "phone": "Téléphone",
     "region": "Province de l'achat",
     "email": "Courriel",
@@ -22,6 +22,8 @@
     "invalidEmail": "Courriel invalide",
     "invalidName": "Nom invalide",
     "passwordMinimum": "Minimum de 12 lettres requises",
+    "passwordMaximum": "Maximum de 32 lettres requises",
+    "passwordComposition": "Le mot de passe doit contenir au moins une lettre majuscule, une lettre minuscule et un chiffre",
     "passwordPolicy": "Le mot de passe doit contenir entre 12 et 32 caractères et contenir au moins une lettre majuscule, une lettre minuscule et un chiffre.",
     "passwordsMismatch": "Les mots de passe ne correspondent pas",
     "serverError": "Quelque chose n'a pas fonctionné! Veuillez réessayer et si vous avez toujours des problèmes, n'hésitez pas à contacter votre conseiller"

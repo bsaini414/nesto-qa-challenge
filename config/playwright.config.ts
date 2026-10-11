@@ -9,14 +9,15 @@ const reportDir = path.resolve(process.cwd(), 'reports', process.env.REPORT_DIR 
 // Retries apply to UI and E2E only. API tests must pass first time.
 const uiRetries = Number(process.env.UI_RETRIES ?? (process.env.CI ? 2 : 0));
 
-// Mobile: iPhone 14 viewport (390x844) on Chromium, so no WebKit install is needed for it as it is the most common screen size 
-const { defaultBrowserType: _unused, ...iPhone14 } = devices['iPhone 14'];
+// Mobile: iPhone 17 profile on WebKit (Safari engine), the closest Playwright match for iPhone Safari.
+const iPhone17 = devices['iPhone 17'];
 
 const browsers = {
   chromium: devices['Desktop Chrome'],
   firefox: devices['Desktop Firefox'],
   webkit: devices['Desktop Safari'],
-  mobile: iPhone14,
+  mobile: iPhone17,
+  android: devices['Pixel 10 Pro'],
 };
 
 export default defineConfig<LangOptions>({

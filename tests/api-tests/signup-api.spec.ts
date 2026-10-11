@@ -1,6 +1,5 @@
-import { APIRequestContext } from '@playwright/test';
 import { knownBug } from '../../src/utils/known-bug';
-import { test, expect, CreatedAccount } from '../../src/fixtures/base.fixture';
+import { test as base, expect } from '../../src/fixtures/base.fixture';
 import { signupFormPayload, SignupPayload } from '../../src/factories/user.factory';
 
 
@@ -9,25 +8,32 @@ const ENDPOINT = '/api/accounts';
 const REQUIRED_FIELDS = ['firstName', 'lastName', 'email', 'phone', 'region', 'language', 'password'] as const;
 
 
-// POST a signup. Pass `created` only for valid signups so the fixture cleans them up.
-async function post(request: APIRequestContext, data: object, created?: CreatedAccount[]) {
-  const res = await request.post(ENDPOINT, { data, failOnStatusCode: false });
-  const text = await res.text();
-  let body: any = text;
-  try { body = JSON.parse(text); } catch { /* keep raw text */ }
-  if (created && res.status() === 201 && body?.account?.id) {
-    created.push({ id: body.account.id, email: body.account.email, accessToken: body.token?.accessToken ?? '' });
-  }
-  return { status: res.status(), body };
-}
+// `api.post` sends a signup and records EVERY 201 for cleanup, including an
+// unexpected 201 from a negative test that the API wrongly accepted (BUG-01/02/07).
+const test = base.extend<{ api: { post: (data: object) => Promise<{ status: number; body: any }> } }>({
+  api: async ({ request, createdAccounts }, use) => {
+    await use({
+      post: async (data) => {
+        const res = await request.post(ENDPOINT, { data, failOnStatusCode: false });
+        const text = await res.text();
+        let body: any = text;
+        try { body = JSON.parse(text); } catch { /* keep raw text */ }
+        if (res.status() === 201 && body?.account?.id) {
+          createdAccounts.push({ id: body.account.id, email: body.account.email, accessToken: body.token?.accessToken ?? '' });
+        }
+        return { status: res.status(), body };
+      },
+    });
+  },
+});
 
 // Password of exact length n that meets the policy (upper, lower, digit).
 const passwordOfLength = (n: number) => 'Qa' + 'b'.repeat(n - 5) + 'Z9' + '1';
 
-test.describe('Positive', { tag: '@smoke' }, () => {
-  test('201 and response body echoes the submitted account (EN)', async ({ request, createdAccounts }) => {
+test.describe('Positive', { tag: ['@smoke', '@creates-account'] }, () => {
+  test('201 and response body echoes the submitted account (EN)', async ({ api }) => {
     const payload = signupFormPayload({ language: 'en' });
-    const { status, body } = await post(request, payload, createdAccounts);
+    const { status, body } = await api.post(payload);
 
     expect(status).toBe(201);
     expect(body.account.email).toBe(payload.email);
@@ -41,9 +47,9 @@ test.describe('Positive', { tag: '@smoke' }, () => {
     expect(body.token?.accessToken).toBeTruthy();
   });
 
-  test('201 and preferredLanguage follows the request (FR)', async ({ request, createdAccounts }) => {
+  test('201 and preferredLanguage follows the request (FR)', async ({ api }) => {
     const payload = signupFormPayload({ language: 'fr' });
-    const { status, body } = await post(request, payload, createdAccounts);
+    const { status, body } = await api.post(payload);
 
     expect(status).toBe(201);
     expect(body.account.preferredLanguage).toBe('fr');
@@ -51,16 +57,16 @@ test.describe('Positive', { tag: '@smoke' }, () => {
   });
 
   for (const length of [12, 32]) {
-    test(`201 for password at the ${length}-character boundary`, async ({ request, createdAccounts }) => {
+    test(`201 for password at the ${length}-character boundary`, async ({ api }) => {
       const password = passwordOfLength(length);
       expect(password.length).toBe(length);
-      const { status } = await post(request, signupFormPayload({ password }), createdAccounts);
+      const { status } = await api.post(signupFormPayload({ password }));
       expect(status).toBe(201);
     });
   }
 
-  test('201 without marketing consent (consent is optional, see ASSUMPTIONS.md)', async ({ request, createdAccounts }) => {
-    const { status } = await post(request, signupFormPayload({ leadDistributeConsentAgreement: false }), createdAccounts);
+  test('201 without marketing consent (consent is optional, see ASSUMPTIONS.md)', async ({ api }) => {
+    const { status } = await api.post(signupFormPayload({ leadDistributeConsentAgreement: false }));
     expect(status).toBe(201);
   });
 });
@@ -99,8 +105,8 @@ test.describe('Negative - field validation', { tag: '@smoke' }, () => {
     };
     const bug = BUG_BY_CASE[c.name];
     const options = bug ? knownBug(bug) : {};
-    test(`rejects ${c.name}`, options, async ({ request }) => {
-      const { status, body } = await post(request, signupFormPayload(c.overrides));
+    test(`rejects ${c.name}`, options, async ({ api }) => {
+      const { status, body } = await api.post(signupFormPayload(c.overrides));
       expect(status).toBe(c.status);
       if (c.field) {
         expect(body.error).toBe('invalid parameters');
@@ -112,42 +118,42 @@ test.describe('Negative - field validation', { tag: '@smoke' }, () => {
 
 test.describe('Negative - missing and wrong-type fields', { tag: '@smoke' }, () => {
   for (const field of ['firstName', 'lastName', 'phone', 'region', 'language'] as const) {
-    test(`rejects a request with ${field} omitted`, knownBug('BUG-01'), async ({ request }) => {
+    test(`rejects a request with ${field} omitted`, knownBug('BUG-01'), async ({ api }) => {
       const payload: Record<string, unknown> = { ...signupFormPayload() };
       delete payload[field];
-      const { status } = await post(request, payload);
+      const { status } = await api.post(payload);
       expect([400, 422]).toContain(status);
     });
   }
 
-  test('rejects a request with password omitted', knownBug('BUG-03'), async ({ request }) => {
+  test('rejects a request with password omitted', knownBug('BUG-03'), async ({ api }) => {
     const payload: Record<string, unknown> = { ...signupFormPayload() };
     delete payload.password;
-    const { status } = await post(request, payload);
+    const { status } = await api.post(payload);
     expect([400, 422]).toContain(status);
   });
 
-  test('rejects email omitted with 422 naming the email field', async ({ request }) => {
+  test('rejects email omitted with 422 naming the email field', async ({ api }) => {
     const payload: Record<string, unknown> = { ...signupFormPayload() };
     delete payload.email;
-    const { status, body } = await post(request, payload);
+    const { status, body } = await api.post(payload);
     expect(status).toBe(422);
     expect(body.parameters).toContain('email');
   });
 
-  test('rejects null firstName', knownBug('BUG-01'), async ({ request }) => {
-    const { status } = await post(request, signupFormPayload({ firstName: null as unknown as string }));
+  test('rejects null firstName', knownBug('BUG-01'), async ({ api }) => {
+    const { status } = await api.post(signupFormPayload({ firstName: null as unknown as string }));
     expect([400, 422]).toContain(status);
   });
 
-  test('rejects numeric firstName (wrong JSON type)', async ({ request }) => {
-    const { status, body } = await post(request, signupFormPayload({ firstName: 12345 as unknown as string }));
+  test('rejects numeric firstName (wrong JSON type)', async ({ api }) => {
+    const { status, body } = await api.post(signupFormPayload({ firstName: 12345 as unknown as string }));
     expect(status).toBe(400);
     expect(JSON.stringify(body)).toContain('cannot unmarshal number');
   });
 
-  test('rejects string-typed consent flag (wrong JSON type)', async ({ request }) => {
-    const { status, body } = await post(request, signupFormPayload({ leadDistributeConsentAgreement: 'yes' as unknown as boolean }));
+  test('rejects string-typed consent flag (wrong JSON type)', async ({ api }) => {
+    const { status, body } = await api.post(signupFormPayload({ leadDistributeConsentAgreement: 'yes' as unknown as boolean }));
     expect(status).toBe(400);
     expect(JSON.stringify(body)).toContain('cannot unmarshal string');
   });
@@ -179,81 +185,81 @@ test.describe('Negative - empty string combinations', { tag: '@smoke' }, () => {
   for (const fields of combos) {
     const bug = bugFor(fields);
     const options = bug ? knownBug(bug) : {};
-    test(`rejects empty string for: ${fields.join(' + ')}`, options, async ({ request }) => {
-      const { status } = await post(request, signupFormPayload(emptied(fields)));
+    test(`rejects empty string for: ${fields.join(' + ')}`, options, async ({ api }) => {
+      const { status } = await api.post(signupFormPayload(emptied(fields)));
       expect([400, 422]).toContain(status);
     });
   }
 
-  test('rejects every required field empty at once', async ({ request }) => {
-    const { status } = await post(request, signupFormPayload(emptied([...REQUIRED_FIELDS])));
+  test('rejects every required field empty at once', async ({ api }) => {
+    const { status } = await api.post(signupFormPayload(emptied([...REQUIRED_FIELDS])));
     expect([400, 422]).toContain(status);
   });
 
-  test('rejects an empty JSON body', knownBug('BUG-04'), async ({ request }) => {
-    const { status } = await post(request, {});
+  test('rejects an empty JSON body', knownBug('BUG-04'), async ({ api }) => {
+    const { status } = await api.post({});
     expect([400, 422]).toContain(status);
   });
 });
 
-test.describe('Negative - duplicate account', { tag: '@smoke' }, () => {
-  test('rejects a second signup with the same email with 409', knownBug('BUG-05'), async ({ request, createdAccounts }) => {
+test.describe('Negative - duplicate account', { tag: ['@smoke', '@creates-account'] }, () => {
+  test('rejects a second signup with the same email with 409', knownBug('BUG-05'), async ({ api }) => {
     const payload = signupFormPayload();
-    const first = await post(request, payload, createdAccounts); // valid account: record for cleanup
+    const first = await api.post(payload); // valid account: record for cleanup
     expect(first.status).toBe(201);
 
-    const second = await post(request, payload);
+    const second = await api.post(payload);
     expect(second.status).toBe(409);
   });
 });
 
-test.describe('Valid input edge cases', { tag: '@smoke' }, () => {
+test.describe('Valid input edge cases', { tag: ['@smoke', '@creates-account'] }, () => {
   // Valid names and numbers that the API should accept.
-  test('201 for a name with accents (Élodie)', async ({ request, createdAccounts }) => {
-    const { status } = await post(request, signupFormPayload({ firstName: 'Élodie' }), createdAccounts);
+  test('201 for a name with accents (Élodie)', async ({ api }) => {
+    const { status } = await api.post(signupFormPayload({ firstName: 'Élodie' }));
     expect(status).toBe(201);
   });
 
-  test("201 for a name with an apostrophe (O'Brien)", async ({ request, createdAccounts }) => {
-    const { status } = await post(request, signupFormPayload({ lastName: "O'Brien" }), createdAccounts);
+  test("201 for a name with an apostrophe (O'Brien)", async ({ api }) => {
+    const { status } = await api.post(signupFormPayload({ lastName: "O'Brien" }));
     expect(status).toBe(201);
   });
 
-  test('201 for a phone with a non-Canadian country code', async ({ request, createdAccounts }) => {
-    const { status, body } = await post(request, signupFormPayload({ phone: '+33145551234' }), createdAccounts);
+  test('201 for a phone with a non-Canadian country code', async ({ api }) => {
+    const { status, body } = await api.post(signupFormPayload({ phone: '+33145551234' }));
     expect(status).toBe(201);
     expect(body.account.phone).toBe('+33145551234');
   });
 
-  test('ignores an unknown extra field and still returns 201', async ({ request, createdAccounts }) => {
+  test('ignores an unknown extra field and still returns 201', async ({ api }) => {
     const payload = { ...signupFormPayload(), unknownField: 'x' };
-    const { status, body } = await post(request, payload, createdAccounts);
+    const { status, body } = await api.post(payload);
     expect(status).toBe(201);
     expect(JSON.stringify(body)).not.toContain('unknownField');
   });
 });
 
 test.describe('Input format and size', { tag: '@smoke' }, () => {
-  test('422 for a firstName longer than the allowed length', async ({ request }) => {
-    const { status, body } = await post(request, signupFormPayload({ firstName: 'A'.repeat(200) }));
+  test('422 for a firstName longer than the allowed length', async ({ api }) => {
+    const { status, body } = await api.post(signupFormPayload({ firstName: 'A'.repeat(200) }));
     expect(status).toBe(422);
     expect(body.parameters).toContain('firstName');
   });
 
-  test('422 for an email longer than the allowed length', async ({ request }) => {
-    const { status, body } = await post(request, signupFormPayload({ email: `${'a'.repeat(240)}@qa-nesto.test` }));
+  test('422 for an email longer than the allowed length', async ({ api }) => {
+    const { status, body } = await api.post(signupFormPayload({ email: `${'a'.repeat(240)}@qa-nesto.test` }));
     expect(status).toBe(422);
     expect(body.parameters).toContain('email');
   });
 
-  test('422 for an uppercase region code (ON)', async ({ request }) => {
-    const { status, body } = await post(request, signupFormPayload({ region: 'on' }));
+  test('422 for a lowercase region code (on)', async ({ api }) => {
+    const { status, body } = await api.post(signupFormPayload({ region: 'on' }));
     expect(status).toBe(422);
     expect(body.parameters).toContain('region');
   });
 
-  test('422 for an uppercase language code (EN)', async ({ request }) => {
-    const { status, body } = await post(request, signupFormPayload({ language: 'EN' }));
+  test('422 for an uppercase language code (EN)', async ({ api }) => {
+    const { status, body } = await api.post(signupFormPayload({ language: 'EN' }));
     expect(status).toBe(422);
     expect(body.parameters).toContain('language');
   });
@@ -279,13 +285,13 @@ test.describe('Request format', { tag: '@smoke' }, () => {
   });
 });
 
-test.describe('Negative - duplicate email variants', { tag: '@smoke' }, () => {
-  test('rejects a duplicate email that differs only in case', async ({ request, createdAccounts }) => {
+test.describe('Negative - duplicate email variants', { tag: ['@smoke', '@creates-account'] }, () => {
+  test('rejects a duplicate email that differs only in case', async ({ api }) => {
     const payload = signupFormPayload();
-    const first = await post(request, payload, createdAccounts);
+    const first = await api.post(payload);
     expect(first.status).toBe(201);
 
-    const upper = await post(request, { ...payload, email: payload.email.toUpperCase() });
+    const upper = await api.post({ ...payload, email: payload.email.toUpperCase() });
     expect([400, 409]).toContain(upper.status);
   });
 });
@@ -293,20 +299,20 @@ test.describe('Negative - duplicate email variants', { tag: '@smoke' }, () => {
 test.describe('Negative - injection and whitespace', { tag: '@smoke' }, () => {
   // Assumption (see ASSUMPTIONS.md): names are plain text. Markup and SQL fragments
   // should be rejected, not stored. Current behaviour: accepted with 201 (BUG-07).
-  test('rejects markup in firstName', knownBug('BUG-07'), async ({ request }) => {
-    const { status } = await post(request, signupFormPayload({ firstName: '<script>x</script>' }));
+  test('rejects markup in firstName', knownBug('BUG-07'), async ({ api }) => {
+    const { status } = await api.post(signupFormPayload({ firstName: '<script>x</script>' }));
     expect([400, 422]).toContain(status);
   });
 
-  test('rejects a SQL fragment in lastName', knownBug('BUG-07'), async ({ request }) => {
-    const { status } = await post(request, signupFormPayload({ lastName: "' OR 1=1 --" }));
+  test('rejects a SQL fragment in lastName', knownBug('BUG-07'), async ({ api }) => {
+    const { status } = await api.post(signupFormPayload({ lastName: "' OR 1=1 --" }));
     expect([400, 422]).toContain(status);
   });
 
   // Assumption: leading/trailing whitespace is trimmed or rejected, never stored as-is.
   // Current behaviour: trimmed (passes).
-  test('trims or rejects leading whitespace in firstName', async ({ request }) => {
-    const { status, body } = await post(request, signupFormPayload({ firstName: ' Spike' }));
+  test('trims or rejects leading whitespace in firstName', { tag: '@creates-account' }, async ({ api }) => {
+    const { status, body } = await api.post(signupFormPayload({ firstName: ' Spike' }));
     if (status === 201) {
       expect(body.account.firstName).toBe('Spike');
     } else {

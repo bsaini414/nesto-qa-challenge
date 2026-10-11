@@ -1,7 +1,11 @@
 name: Smoke
 
-# Runs against a QA or staging URL. Triggered by the app repo after a deploy or started by hand with a URL (guarded by scripts/check-target.js).
+# Runs against a QA or staging URL. Triggered on push and pull requests to main, by the app repo after a deploy, or by manual trigger with a URL .
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   repository_dispatch:
     types: [staging-deployed]
   workflow_dispatch:
@@ -23,7 +27,7 @@ jobs:
     timeout-minutes: 20
     environment: staging
     env:
-      QA_BASE_URL: ${{ github.event.client_payload.url || github.event.inputs.base_url || vars.QA_BASE_URL }}
+      QA_BASE_URL: ${{ github.event.client_payload.url || github.event.inputs.base_url || vars.QA_BASE_URL || 'https://app.qa.nesto.ca' }}
       UI_RETRIES: "1"
       CI: "true"
       SKIP_KNOWN_BUGS: "true"
@@ -42,7 +46,16 @@ jobs:
       - name: Check target is not production
         run: node scripts/check-target.js "$QA_BASE_URL"
 
-      - name: Smoke tests
+      # Push and pull request: skip tests that create real accounts (cleanup is not available yet),
+      # except @pr-smoke (the E2E signup, one account per language). Deploy and manual runs run everything.
+      - name: Smoke tests (push / pull request)
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        env:
+          REPORT_DIR: blocking
+        run: npx playwright test -c config/playwright.config.ts --project=api --project=chromium-en --project=chromium-fr --grep @smoke --grep-invert "^(?!.*@pr-smoke).*@creates-account"
+
+      - name: Smoke tests (deploy / manual)
+        if: github.event_name != 'push' && github.event_name != 'pull_request'
         env:
           REPORT_DIR: blocking
         run: npx playwright test -c config/playwright.config.ts --project=api --project=chromium-en --project=chromium-fr --grep @smoke

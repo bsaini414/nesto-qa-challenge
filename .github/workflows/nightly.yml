@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 30
     environment: staging
     env:
-      QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL }}
+      QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL || 'https://app.qa.nesto.ca' }}
       CI: "true"
       SKIP_KNOWN_BUGS: "true"
     steps:
@@ -63,9 +63,11 @@ jobs:
           - browser: webkit
             install: webkit
           - browser: mobile
+            install: webkit
+          - browser: android
             install: chromium
     env:
-      QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL }}
+      QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL || 'https://app.qa.nesto.ca' }}
       UI_RETRIES: "2"
       CI: "true"
       SKIP_KNOWN_BUGS: "true"
@@ -113,9 +115,11 @@ jobs:
           - browser: webkit
             install: webkit
           - browser: mobile
+            install: webkit
+          - browser: android
             install: chromium
     env:
-      QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL }}
+      QA_BASE_URL: ${{ github.event.inputs.base_url || vars.QA_BASE_URL || 'https://app.qa.nesto.ca' }}
       UI_RETRIES: "2"
       CI: "true"
       SKIP_KNOWN_BUGS: "true"

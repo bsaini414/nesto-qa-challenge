@@ -2,7 +2,7 @@
 
 Playwright + TypeScript automation for the Nesto signup page (`/signup`). It covers the API, the UI, and end-to-end flows in English and French, across desktop browsers and a mobile profile.
 
-> The suite creates real accounts. Only run it against QA or staging. `scripts/check-target.js` refuses hosts that don't look like QA/staging/preview/UAT.
+> The suite creates real accounts. Only run it against QA or staging. `config/env.ts` refuses hosts that don't look like QA/staging/preview/UAT, for local and CI runs alike.
 
 ## Prerequisites
 
@@ -26,12 +26,12 @@ Settings are read from environment variables. `.env` is loaded locally and is gi
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `QA_BASE_URL` | `https://app.qa.nesto.ca` | Target site. Must be QA or staging. |
+| `QA_BASE_URL` | `https://app.qa.nesto.ca` | Target site. Must be QA or staging; anything else stops the run. |
 | `REPORT_DIR` | `playwright` | Subfolder under `reports/` for the run output. |
 | `UI_RETRIES` | `0` locally, `2` in CI | Retries for UI and E2E tests. |
 | `ACCOUNT_CLEANUP_METHOD` | `DELETE` | HTTP method used to clean up created accounts. |
 | `ACCOUNT_CLEANUP_PATH` | `/api/accounts/{id}` | Cleanup path. Cleanup currently returns `404`, so accounts stay in QA. |
-| `WAIT_SHORT_MS`, `WAIT_LONG_MS`, `WAIT_VERY_LONG_MS` | `500`, `3000`, `30000` | Override the wait presets in `src/utils/wait.ts`. |
+| `WAIT_SHORT_MS`, `WAIT_LONG_MS`, `WAIT_VERY_LONG_MS` | `500`, `3000`, `10000` | Override the wait presets in `src/utils/wait.ts`. |
 
 ## Running the tests
 
@@ -41,6 +41,7 @@ Settings are read from environment variables. `.env` is loaded locally and is gi
 | `npm run test:en` | Chromium, English only |
 | `npm run test:fr` | Chromium, French only |
 | `npm run test:smoke` | Smoke tests (`@smoke`) on API, Chromium EN and FR, excluding known bugs |
+| `npm run test:smoke:pr` | Smoke as run on push and pull requests: skips tests that create accounts, except the E2E signup |
 | `npm run test:smoke:known` | Smoke tests tagged as known bugs |
 | `npm run test:regression` | Everything except known bugs |
 | `npm run test:known` | Only known-bug tests |
@@ -62,13 +63,31 @@ npx playwright test -c config/playwright.config.ts --headed --workers=1 --projec
 | `chromium-en`, `chromium-fr` | Desktop Chrome | EN, FR |
 | `firefox-en`, `firefox-fr` | Desktop Firefox | EN, FR |
 | `webkit-en`, `webkit-fr` | Desktop Safari engine | EN, FR |
-| `mobile-en`, `mobile-fr` | iPhone 14 profile (390×844) on Chromium | EN, FR |
+| `mobile-en`, `mobile-fr` | iPhone 17 profile on WebKit (Safari engine) | EN, FR |
+| `android-en`, `android-fr` | Pixel 10 Pro profile on Chromium | EN, FR |
 
 On mobile, the header links and language switch sit in the burger menu. The mobile-specific tests are at the bottom of `tests/e2e-tests/signup-e2e.spec.ts`.
 
+### Mobile profiles
+
+Profiles come from Playwright's device list in `config/playwright.config.ts`. Playwright's viewport is the browser area, not the full screen.
+
+| Profile | Used for | Engine | Viewport |
+| --- | --- | --- | --- |
+| iPhone 17 | iOS Safari layout | WebKit | 402×681 |
+| Pixel 10 Pro | Android Chrome layout | Chromium | 427×876 |
+
+Playwright has no Pixel 11 Pro profile, so Android uses Pixel 10 Pro. The mobile limits and the manual iPhone checks are under "Known limitations".
+
+## Accessibility
+
+- Each locale gets an axe scan (WCAG 2.0/2.1 A and AA) on page load and with field errors shown. The tests expect zero violations.
+- Every field is checked for a visible label and a matching accessible name (what a screen reader announces), not only its placeholder.
+- Automated scans catch only part of accessibility issues. Screen-reader and keyboard-only checks are manual.
+
 ## Known bugs
 
-Tests for known defects use `knownBug('BUG-xx')` from `src/utils/known-bug.ts`. This adds the `@known-bug` tag, so they run separately and their failures don't block the build. Each bug is described in `docs/BUG_REPORT.md`.
+Tests for known defects use `knownBug('BUG-xx')` from `src/utils/known-bug.ts`. This adds the `@known-bug` tag, so they run separately and their failures don't block the build. Each bug is described in `docs/BUG_REPORT.md` and tracked by a Jira ticket; the tag is removed when the ticket is closed.
 
 ## Reports
 
@@ -95,8 +114,8 @@ config/                 Playwright config and environment settings
   locales/              EN and FR text and validation messages
 src/
   factories/            Random test data (faker)
-  fixtures/             Shared fixtures, including account cleanup
-  pages/                Signup page object (locators and actions)
+  fixtures/             Shared fixtures: account cleanup, consent banner blocked, geolocation mocked
+  pages/                Signup page object (role/label locators and actions)
   utils/                Wait presets and the known-bug helper
 tests/
   api-tests/            API contract and negative cases
@@ -115,15 +134,26 @@ docs/
 
 ## CI
 
-- **Smoke** (`smoke.yml`): triggered by a `repository_dispatch` from the app repo after a staging deploy, or started by hand with a URL input.
+- **Smoke** (`smoke.yml`): runs on every push and pull request to `main`, on a `repository_dispatch` from the app repo after a staging deploy, or by hand with a URL input. On push and pull requests it skips tests tagged `@creates-account`, except the E2E signup (`@pr-smoke`), so each run creates only one account per language. Deploy and manual runs include everything.
 - **Nightly** (`nightly.yml`): runs daily at 02:00 UTC (`0 2 * * *`) and can be started by hand. It has separate API, UI, and E2E jobs; UI and E2E run a browser matrix.
 
-Both workflows run `check-target.js` before any test. Reporting back to the app pull request needs a token with status-write access to the app repository. This is not configured yet.
+Both workflows also run `check-target.js` before any test, as a second check. Reporting back to the app pull request needs a token with status-write access to the app repository. This is not configured yet.
 
 ## Known limitations
 
-- **Accounts are not cleaned up.** The assumed `DELETE /api/accounts/{id}` returns `404`, so every signup leaves an account in QA.
-- **Intermittent login blocks under parallel load.** Auth0 can return `429 too_many_attempts` when several signups log in from one machine at once. The signup-to-Get A Quote test can fail in full parallel runs. See BUG-12 and `docs/ASSUMPTIONS.md`.
+- **Mobile projects are emulations.** They cover screen size, touch support, user agent, and browser engine.
+- **They cannot test real taps and clicks on an iPhone**, the on-screen keyboard, the Safari toolbar, or iOS-specific behaviour.
+- **A passing mobile run means the layout and logic work in the iPhone profile.** It does not mean the site works on an iPhone.
+- **Validate on a real iPhone manually before a release:**
+  - Check that the burger menu opens, and Login and the language switch work
+  - Verify phone-country and province dropdowns open and select values natively
+  - Ensure the on-screen virtual keyboard does not obscure active input fields
+  - Verify password and confirm password fields accept input and render inline validation
+  - Confirm the submit button touch target can be tapped cleanly
+- **Accounts are not cleaned up yet.** Every `201` is recorded and a cleanup is attempted, but the assumed `DELETE /api/accounts/{id}` returns `404`, so accounts stay in QA until a supported cleanup endpoint exists.
+- **Intermittent login blocks under parallel load.** Auth0 can return `429 too_many_attempts` when several signups log in from one machine at once. The signup-to-Get A Quote test can fail in full parallel runs. See BUG-11 and `docs/ASSUMPTIONS.md`.
+- **Later:** add a cloud device service such as BrowserStack or Sauce Labs to run these checks on real iPhone and Android devices automatically.
+
 
 ## Contributing
 

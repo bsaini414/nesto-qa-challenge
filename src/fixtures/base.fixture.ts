@@ -1,4 +1,4 @@
-import { test as base, APIRequestContext } from '@playwright/test';
+import { test as base, APIRequestContext, Page, TestInfo } from '@playwright/test';
 import * as en from '../../config/locales/en.json';
 import * as fr from '../../config/locales/fr.json';
 
@@ -11,6 +11,10 @@ export interface CreatedAccount {
 
 // Locale strings (config/locales)
 export type Locale = typeof en;
+
+// Shape of the real /api/geolocation/all response, for a visitor in Quebec.
+const geo = { region: 'Quebec', region_code: 'QC', country: 'Canada', country_code: 'CA', postal: 'H3H', error: false };
+const GEOLOCATION_QC = { 'ipapi.co': { provider: 'ipapi.co', ...geo }, 'ipinfo.io': { provider: 'ipinfo.io', ...geo } };
 
 // Cleanup assumption (see ASSUMPTIONS.md): DELETE /api/accounts/{id} with the account's bearer token deletes the account.
 export async function cleanupAccount(request: APIRequestContext, account: CreatedAccount) {
@@ -27,7 +31,6 @@ export async function cleanupAccount(request: APIRequestContext, account: Create
 }
 
 type Fixtures = {
-  fullPageOnFailure: void;
   // Auto fixture: when SKIP_KNOWN_BUGS is set (CI), known-defect tests are reported as skipped and not run.
   skipKnownBugsInCi: void;
   // Accounts created during the test. Cleaned up automatically after each test.
@@ -48,21 +51,6 @@ export const test = base.extend<Fixtures>({
     { auto: true },
   ],
 
-  // On failure, capture the whole page (not just the viewport) so CI artifacts show fields below the fold.
-  fullPageOnFailure: [
-    async ({ page }, use, testInfo) => {
-      await use();
-      if (testInfo.status === testInfo.expectedStatus) return;
-      try {
-        const png = await page.screenshot({ fullPage: true });
-        await testInfo.attach("full-page-on-failure", { body: png, contentType: "image/png" });
-      } catch {
-        // page may already be closed; the default screenshot is still kept
-      }
-    },
-    { auto: true },
-  ],
-
   lang: ['en', { option: true }],
 
   strings: async ({ lang }, use) => {
@@ -71,6 +59,17 @@ export const test = base.extend<Fixtures>({
 
   signupPath: async ({ strings }, use) => {
     await use(strings.path);
+  },
+
+  // Browser tests only (API tests never request `page`, so no browser starts for them).
+  page: async ({ page }, use) => {
+    // Cookie consent
+    await page.route('https://sdk.privacy-center.org/**', (route) => route.abort());
+    // QC is the preselected province and phonecountry; do not depend on where the runner is. Tests can override this route.
+    await page.route('**/api/geolocation/all', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(GEOLOCATION_QC) }),
+    );
+    await use(page);
   },
 
   createdAccounts: async ({ request }, use) => {
@@ -82,5 +81,18 @@ export const test = base.extend<Fixtures>({
     }
   },
 });
+
+
+// Attaches a full-page screenshot when a test fails.
+// Kept out of the shared fixtures so API tests (no browser) never launch one.
+export async function attachFullPageOnFailure(page: Page, testInfo: TestInfo) {
+  if (testInfo.status === testInfo.expectedStatus) return;
+  try {
+    const png = await page.screenshot({ fullPage: true });
+    await testInfo.attach('full-page-on-failure', { body: png, contentType: 'image/png' });
+  } catch {
+    // page may already be closed; the default screenshot is still kept
+  }
+}
 
 export { expect } from '@playwright/test';

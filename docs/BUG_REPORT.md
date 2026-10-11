@@ -51,11 +51,11 @@ Failing test: `rejects an empty JSON body`.
 
 ---
 
-### BUG-05: Duplicate email returns 400 (low)
+### BUG-05: Duplicate email returns 400 (medium)
 
 A second signup with the same email returns `400 {"error":"bad format"}`. The response does not say the email is already registered.
 
-Expected: `409 Conflict` naming `email`  # assumption
+Expected: `409 Conflict` naming `email` (assumption).
 
 Failing test: `rejects a second signup with the same email with 409`.
 
@@ -75,7 +75,7 @@ Repro: open `/fr/signup`, submit with an empty or short password, read the messa
 
 Expected: "Le mot de passe doit contenir entre 12 et 32 caractères et contenir au moins une lettre majuscule, une lettre minuscule et un chiffre."
 
-Failing tests: `shows the marketing consent text and the password rule` (fr), `password policy message is spelled correctly` (fr).
+Failing test: `password rule under the field is worded correctly (FR)` (e2e-tests).
 
 ---
 
@@ -89,7 +89,7 @@ Failing tests: `rejects markup in firstName`, `rejects a SQL fragment in lastNam
 
 ---
 
-### BUG-08: Form fields are missing autocomplete attributes (medium)
+### BUG-08: Form fields are missing autocomplete attributes (low)
 
 Chrome flags "A form field has an id or name attribute that the browser's autofill recognizes... doesn't have an autocomplete attribute" (1 resource).
 
@@ -104,15 +104,22 @@ Failing test: `form fields declare autocomplete tokens for browser autofill` (ui
 
 ---
 
-### BUG-09: Duplicate form field IDs (medium)
-
-Chrome's Issues panel reports "Multiple form field elements in the same form have the same id attribute value" on 7 resources. A user-supplied element dump lists these seven controls, which have ids field-2, field-4, field-6, field-8, field-10, field-12 and field-14.
+### BUG-09: After returning from the login page, all signup fields share one id and one label (medium)
 
 Steps to Reproduce:
-1. Navigate to https://app.qa.nesto.ca/signup
-2. Click on Login button
-3. After login page loads, tap on don't have an account
-4. Look at the console of the app
+1. Navigate to https://app.qa.nesto.ca/signup (or /fr/signup)
+2. Click "Log in" under the form
+3. On the login page, click "Don't have an account?"
+4. Inspect the signup fields, or open the browser console
+
+Expected Result: each field has its own id and label (field-2, field-4, ... field-14), as on a direct visit to /signup.
+Actual Result: first name, last name, phone, email, password and confirm password all get `id="field-1"` and `aria-labelledby="form-placeholder-field-1"`. Screen readers announce every field as "First name", and Chrome's Issues panel reports "Multiple form field elements in the same form have the same id attribute value".
+
+Reproducibility: intermittent. Seen on every French run and on some English runs.
+
+Impact: screen-reader users cannot tell the fields apart; label-based automation matches six fields at once.
+
+Failing test: `fields keep their own labels after returning from the login page` (e2e-tests).
 
 ---
 
@@ -127,23 +134,7 @@ Actual Result: The app navigates to the login page
 
 ---
 
-### BUG-11: Selecting another country doesn't change the province of purchase selection (high)
-
-Steps to Reproduce:
-1. Navigate to https://app.qa.nesto.ca/signup
-2. Select any phone country other than Canada (for example, United States).
-3. Look at the "Province of purchase" list.
-
-Expected Result: The province list updates to match the selected country.
-Actual Result: The province list still contains only Canadian provinces (Ontario, Quebec, Alberta, and so on)
-
-Related observation (location default, not covered by the steps above):
-- The province is pre-filled from a location lookup (`/api/geolocation/all`). Locally the lookup returns Quebec.
-- When the lookup returns no province, the field stays on "Province of purchase" and is required. Submitting shows "The field is required" on a field the user did not touch.
-- When no provinve is selected, the password mismatch error doesn't show up after adding only missmatched password in the form 
-
----
-### BUG-12: No message when signup succeeds but the automatic login is blocked (medium)
+### BUG-11: No message when signup succeeds but the automatic login is blocked (medium)
 
 Steps to reproduce:
 1. Open the signup page and submit a valid form.
@@ -157,8 +148,28 @@ Actual: the account is created (`POST /api/accounts` returns 201). The app then 
 {"error":"too_many_attempts","error_description":"We have detected suspicious login behavior and further attempts will be blocked. Please contact the administrator."}
 ```
 
-The user stays on `/signup`, and no message appears on the page.
+---
+### BUG-12: No province is selected when a user visits from a non-Canadian location, and the password mismatch error is hidden (medium)
 
-Note: the block itself may be Auth0's suspicious-login protection working as designed for the QA tenant. The defect is the silent failure after a successful account creation.
+Steps to Reproduce:
+1. Open https://app.qa.nesto.ca/signup from a non-Canadian location (or with the `/api/geolocation/all` response mocked to return no region).
+2. Leave "Province of purchase" alone.
+3. Enter a password and a different confirm password, then click "Create your account".
+
+Expected Result: The form selects a province or explains what to choose, and shows the "Passwords do not match" error along with the other field errors.
+Actual Result: The province stays on "Province of purchase" and shows "The field is required" and all other missing field errors except for the password mismatch message. 
+
+---
+
+### BUG-13: Phone-country control is not translated on the French page (low)
+
+Steps to Reproduce:
+1. Open https://app.qa.nesto.ca/fr/signup
+2. Inspect the country selector beside the phone field, or open it.
+
+Expected Result: a French accessible name (for example "Pays du numéro de téléphone") and French country names.
+Actual Result: the accessible name is "Phone number country", and the options are in English ("Germany", "United States"). Screen-reader users hear English on the French page.
+
+Failing test: `phone country has a localized accessible name (FR)` (e2e-tests).
 
 ---

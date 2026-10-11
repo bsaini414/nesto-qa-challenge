@@ -9,12 +9,14 @@
     "test:fr": "playwright test -c config/playwright.config.ts --project=chromium-fr",
     "test:smoke": "playwright test -c config/playwright.config.ts --project=api --project=chromium-en --project=chromium-fr --grep @smoke --grep-invert @known-bug",
     "test:smoke:known": "playwright test -c config/playwright.config.ts --project=api --project=chromium-en --project=chromium-fr --grep \"(?=.*@smoke)(?=.*@known-bug)\"",
+    "test:smoke:pr": "playwright test -c config/playwright.config.ts --project=api --project=chromium-en --project=chromium-fr --grep @smoke --grep-invert \"@known-bug|^(?!.*@pr-smoke).*@creates-account\"",
     "test:regression": "playwright test -c config/playwright.config.ts --grep-invert @known-bug",
     "test:known": "playwright test -c config/playwright.config.ts --grep @known-bug",
     "typecheck": "tsc --noEmit"
   },
   "license": "UNLICENSED",
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@faker-js/faker": "^8.4.1",
     "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.4",

@@ -14,7 +14,7 @@
 - Other bad input returns `400 {"error": "bad format"}`, with no field name.
 - A password that breaks the rules should return `400`. `401` means an auth
   failure, so I don't expect it here (see BUG-03).
-- A duplicate email should return `409`.(see BUG-05).
+- A duplicate email should return `409` (see BUG-05).
 - An empty JSON body should return `400` or `422`, not `500` (see BUG-04).
 - The API ignores the `Accept-Language` header. The only language input is the body field `language`.
 - The API's error text is English in both languages. The French page shows its own messages, so users don't see the API text. 
@@ -44,7 +44,9 @@ The API doesn't enforce several of these. See `BUG_REPORT.md`.
 
 - I assume `DELETE /api/accounts/{id}` with the account's bearer token deletes the account.
 - It doesn't work yet. DELETE, PATCH, and GET on `/api/accounts/{id}` and `/api/accounts/me`
-  all return `404`. 
+  all return `404`.
+- Any `201` is recorded for cleanup, including an unexpected `201` from a negative test that the API
+  wrongly accepted (BUG-01, BUG-02, BUG-07). API tests send requests through the `api.post` fixture, which does this.
 
 ## Mocked and real API
 
@@ -58,7 +60,20 @@ The API doesn't enforce several of these. See `BUG_REPORT.md`.
 ## Known defects
 
 - Tests that hit a known defect fail on purpose. They are tagged with `knownBug('BUG-xx')`.
+- Each BUG-xx is tracked by a Jira ticket. A `@known-bug` test stays in the suite until its ticket is closed;
+  when the fix ships, the test starts passing and the tag is removed.
 
+
+## Browser test setup
+
+- The cookie consent banner (Didomi, `sdk.privacy-center.org`) is blocked in browser tests, so it never covers the form. Consent behaviour is out of scope.
+- `/api/geolocation/all` is mocked to a visitor in Quebec, Canada, so the preselected province and phone country do not depend on where the runner is. BUG-12 tests override it with an empty location.
+- A page is ready once the client app has made its geolocation call, which happens after hydration.
+
+## Accessibility
+
+- The target is WCAG 2.1 level AA. The signup form has no axe violations today, so any new finding is treated as a regression.
+- Screen-reader and keyboard-only review are out of scope for automation and are done manually.
 
 ## Autofill
 
@@ -92,20 +107,25 @@ The API doesn't enforce several of these. See `BUG_REPORT.md`.
 ## CI/CD
 
 - The application code lives in another repository. This repository only tests it.
+- Smoke also runs on every push and pull request to `main` in this repository. Because QA accounts cannot be deleted yet, those runs skip tests tagged `@creates-account`, except the E2E signup (`@pr-smoke`): one real account per language per run. The full real-API contract runs after each staging deploy and nightly.
 - The app repository holds a token that can send `repository_dispatch` events to this repository. It is stored as a secret in the app repository.
 - The app repository sends the target URL, the commit SHA and the branch in the dispatch payload.
 - The target is a shared QA or staging environment. Production is never a target.
-- `scripts/check-target.js` refuses any host that does not look like a QA, staging, preview or UAT host. This is a name check, not a real access control.
+- `config/env.ts` refuses any host that does not look like a QA, staging, preview or UAT host, so local runs are guarded too. `scripts/check-target.js` repeats the check in CI. This is a name check, not a real access control.
 - The trigger for smoke is a successful deploy to staging, not a git push.
 - Smoke can also be started by hand from the Actions tab, with a URL input.
 - Results are reported to the app pull request as a commit status. This repository needs a second token that can write statuses on the app repository. Not built here.
-- The mobile header Login link sits inside the burger menu on narrow screens and I am assuming that it's a design choice to have differnt options under burger menu 
+- The mobile header Login link sits inside the burger menu on narrow screens and I am assuming that it's a design choice to have different options under the burger menu.
 
 ## Automatic login after signup
 
 - Signup is two calls: `POST /api/accounts` creates the account and returns `201`, then the app logs the user in through `auth.nesto.ca`.
 - Auth0 can block that login with `429 too_many_attempts` ("suspicious login behavior"). The block has no `Retry-After` header.
 - Under parallel load from one machine, some logins are blocked (4 of 8 browser runs). A single run succeeds.
-- I assume the block is Auth0's suspicious-login protection for the QA tenant, not the API's own limit. The QA team should confirm.
-- The silent failure (no message after a 201 and a blocked login) is logged as BUG-12.
+- I assume the block is Auth0's suspicious-login protection for the QA tenant, not the API's own limit. 
 
+
+## Property location vs. applicant phone
+
+- It is assumed that Nesto strictly finances Canadian real estate, meaning 'Province of Purchase' is intentionally restricted to Canadian provinces. 
+- The country selector attached to the phone field is assumed to represent the phone dialing code (E.164) for international/relocating applicants, rather than the property's country location because of this, changing the phone country does not change the province list. 
