@@ -1,4 +1,4 @@
-# Nesto Signup QA Suite
+# Nesto Signup QA Challenge 
 
 Playwright + TypeScript automation for the Nesto signup page (`/signup`). It covers the API, the UI, and end-to-end flows in English and French, across desktop browsers and a mobile profile.
 
@@ -126,9 +126,9 @@ scripts/
   summary.js            Builds the run summary
 docs/
   ASSUMPTIONS.md        Assumptions made while writing the tests
-  BUG_REPORT.md         Defects found, BUG-01 to BUG-12
+  BUG_REPORT.md         Defects found, BUG-01 to BUG-13
 .github/workflows/
-  smoke.yml             Smoke run (on deploy dispatch or manual)
+  smoke.yml             Smoke run (push, pull request, deploy dispatch, manual)
   nightly.yml           Nightly API, UI, and E2E jobs per browser
 ```
 
@@ -138,6 +138,29 @@ docs/
 - **Nightly** (`nightly.yml`): runs daily at 02:00 UTC (`0 2 * * *`) and can be started by hand. It has separate API, UI, and E2E jobs; UI and E2E run a browser matrix.
 
 Both workflows also run `check-target.js` before any test, as a second check. Reporting back to the app pull request needs a token with status-write access to the app repository. This is not configured yet.
+
+## Last run
+
+Both runs used commit `524a351` against `https://app.qa.nesto.ca` on 2026-10-12. Skipped tests are known bugs (`@known-bug`), which CI skips with `SKIP_KNOWN_BUGS`.
+
+| Workflow | Trigger | Result | Total | Passed | Needed a retry | Skipped (known bugs) |
+| --- | --- | --- | --- | --- | --- | --- |
+| [Smoke](https://github.com/bsaini414/nesto-qa-challenge/actions/runs/38316209260) | push | Passed, 1m30s | 81 | 39 | 0 | 42 |
+| [Nightly regression](https://github.com/bsaini414/nesto-qa-challenge/actions/runs/38316402273) | manual | Passed, 11 jobs | 675 | 521 | 7 | 154 |
+
+"Passed" includes tests that needed a retry. "Needed a retry" shows how many of them failed the first attempt.
+
+Nightly per job:
+
+| Job | Total | Passed | Needed a retry | Skipped (known bugs) |
+| --- | --- | --- | --- | --- |
+| API | 75 | 34 | 0 | 41 |
+| UI (chromium, firefox, webkit, android, mobile) | 72 each | 66 each | 1 (mobile) | 6 each |
+| E2E chromium / firefox | 48 each | 28 each | 0 | 20 each |
+| E2E webkit | 48 | 29 | 2 | 19 |
+| E2E mobile / android | 48 each | 36 each | 4 (mobile) | 12 each |
+
+The 7 tests that needed a retry all ran on the WebKit (Safari) engine (`webkit-fr`, `mobile-en`), mostly burger-menu and new-tab navigation. They are being watched.
 
 ## Known limitations
 
